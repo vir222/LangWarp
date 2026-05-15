@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="LangWarp" />
+<meta name="theme-color" content="#060810" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icon.png" />
+<title>LangWarp — Live Voice Translation</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:#060810; --surface:#0d1117; --glass:rgba(255,255,255,0.04);
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --text:#e8eaf0; --muted:#5a6070; --cyan:#00d4ff; --cyan2:#0099cc;
+  --violet:#7c3aed; --violet2:#a855f7; --green:#00ff88; --red:#ff4455;
+  --radius:14px;
+}
+body { font-family:'Space Grotesk',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:grid; grid-template-rows:auto 1fr auto; overflow-x:hidden; }
+body::before { content:''; position:fixed; inset:0; z-index:0; pointer-events:none; background-image:linear-gradient(rgba(0,212,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.03) 1px,transparent 1px); background-size:40px 40px; animation:gridShift 20s linear infinite; }
+body::after { content:''; position:fixed; inset:0; z-index:0; pointer-events:none; background:radial-gradient(ellipse 600px 400px at 20% 50%,rgba(0,212,255,0.06) 0%,transparent 70%),radial-gradient(ellipse 600px 400px at 80% 50%,rgba(124,58,237,0.06) 0%,transparent 70%); }
+@keyframes gridShift { from{background-position:0 0} to{background-position:40px 40px} }
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+@keyframes recPulse { 0%,100%{opacity:1} 50%{opacity:0.65} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes orbGlow { 0%,100%{opacity:0.3} 50%{opacity:0.7} }
+@keyframes livePulse { 0%,100%{box-shadow:0 0 0 2px rgba(0,255,136,0.2)} 50%{box-shadow:0 0 0 6px rgba(0,255,136,0.05)} }
+@keyframes waveAnim { 0%,100%{transform:scaleY(0.3)} 50%{transform:scaleY(1)} }
+
+/* Header */
+header { position:relative; z-index:10; padding:18px 36px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--border); backdrop-filter:blur(20px); background:rgba(6,8,16,0.7); }
+.wordmark { font-family:'Orbitron',monospace; font-size:20px; font-weight:900; letter-spacing:2px; background:linear-gradient(135deg,var(--cyan),var(--violet2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.header-tag { font-size:10px; font-weight:500; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; padding:3px 10px; border:1px solid var(--border); border-radius:20px; }
+.status-pill { margin-left:auto; display:flex; align-items:center; gap:8px; padding:5px 14px; border-radius:20px; border:1px solid var(--border); background:var(--glass); font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--muted); transition:all 0.3s; }
+.status-pill.live { border-color:rgba(0,255,136,0.3); color:var(--green); background:rgba(0,255,136,0.06); }
+.pulse-dot { width:7px; height:7px; border-radius:50%; background:var(--muted); transition:background 0.3s; }
+.status-pill.live .pulse-dot { background:var(--green); box-shadow:0 0 0 3px rgba(0,255,136,0.2); animation:livePulse 1.5s ease-in-out infinite; }
+.btn-header { background:none; border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:600; color:var(--muted); letter-spacing:0.5px; cursor:pointer; transition:all 0.2s; text-transform:uppercase; }
+.btn-header:hover { border-color:var(--cyan); color:var(--cyan); }
+#userChip { display:none; align-items:center; gap:8px; padding:4px 12px; border-radius:20px; border:1px solid var(--border); background:var(--glass); font-size:12px; font-weight:600; color:var(--text); }
+
+/* Views */
+.view { display:none; position:relative; z-index:1; }
+.view.active { display:block; }
+#conversationView.active { display:grid; }
+
+/* ── AUTH SCREEN ── */
+#authView { max-width:420px; margin:0 auto; padding:40px 24px; width:100%; }
+.auth-hero { text-align:center; margin-bottom:32px; }
+.auth-hero-label { font-family:'Orbitron',monospace; font-size:10px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:var(--cyan); margin-bottom:12px; display:flex; align-items:center; justify-content:center; gap:10px; }
+.auth-hero-label::before,.auth-hero-label::after { content:''; flex:1; max-width:60px; height:1px; background:linear-gradient(90deg,transparent,var(--cyan)); }
+.auth-hero-label::after { background:linear-gradient(90deg,var(--cyan),transparent); }
+.auth-hero h1 { font-family:'Orbitron',monospace; font-size:26px; font-weight:700; letter-spacing:1px; margin-bottom:8px; }
+.auth-hero p { font-size:13px; color:var(--muted); line-height:1.6; }
+.auth-card { background:var(--glass); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; backdrop-filter:blur(12px); animation:fadeUp 0.4s ease both; }
+.auth-tabs { display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--border); }
+.auth-tab { padding:14px; text-align:center; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; transition:all 0.2s; background:none; border:none; font-family:'Space Grotesk',sans-serif; letter-spacing:0.3px; }
+.auth-tab.active { color:var(--cyan); background:rgba(0,212,255,0.05); border-bottom:2px solid var(--cyan); }
+.auth-body { padding:24px 22px; }
+.auth-field { margin-bottom:16px; }
+.auth-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--muted); margin-bottom:6px; display:block; }
+.auth-input { width:100%; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:9px; padding:11px 14px; font-family:'Space Grotesk',sans-serif; font-size:14px; color:var(--text); outline:none; transition:border-color 0.2s; }
+.auth-input:focus { border-color:var(--cyan); }
+.auth-input::placeholder { color:var(--muted); }
+.btn-auth { width:100%; padding:13px; border-radius:10px; border:none; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; cursor:pointer; background:linear-gradient(135deg,var(--cyan2),var(--violet)); color:white; margin-top:6px; transition:all 0.2s; }
+.btn-auth:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(0,212,255,0.2); }
+.btn-auth:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+.auth-error { margin-top:12px; padding:10px 13px; border-radius:8px; background:rgba(255,68,85,0.08); color:var(--red); border:1px solid rgba(255,68,85,0.2); font-size:12px; font-weight:500; display:none; text-align:center; }
+.auth-error.show { display:block; }
+.auth-divider { text-align:center; margin:20px 0 16px; font-size:12px; color:var(--muted); }
+.btn-guest { width:100%; padding:11px; border-radius:10px; background:none; border:1px solid var(--border); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; transition:all 0.2s; }
+.btn-guest:hover { border-color:var(--border2); color:var(--text); }
+
+/* Saved voices panel */
+.saved-voices-panel { margin-top:16px; padding:16px; background:rgba(0,255,136,0.04); border:1px solid rgba(0,255,136,0.15); border-radius:10px; }
+.saved-voices-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--green); margin-bottom:12px; }
+.saved-voice-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+.saved-voice-item:last-child { border-bottom:none; }
+.saved-voice-name { font-size:13px; font-weight:600; flex:1; }
+.saved-voice-lang { font-size:11px; color:var(--muted); }
+.btn-use-voice { background:rgba(0,212,255,0.1); border:1px solid rgba(0,212,255,0.2); border-radius:7px; padding:5px 12px; font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:600; color:var(--cyan); cursor:pointer; transition:all 0.2s; }
+.btn-use-voice:hover { background:rgba(0,212,255,0.2); }
+
+/* ── CALIBRATION SCREEN ── */
+#calibrationView { max-width:820px; margin:0 auto; padding:32px 36px 20px; width:100%; }
+.calib-hero { text-align:center; margin-bottom:36px; }
+.calib-hero-label { font-family:'Orbitron',monospace; font-size:10px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:var(--cyan); margin-bottom:12px; display:flex; align-items:center; justify-content:center; gap:10px; }
+.calib-hero-label::before,.calib-hero-label::after { content:''; flex:1; max-width:80px; height:1px; background:linear-gradient(90deg,transparent,var(--cyan)); }
+.calib-hero-label::after { background:linear-gradient(90deg,var(--cyan),transparent); }
+.calib-hero h1 { font-family:'Orbitron',monospace; font-size:28px; font-weight:700; letter-spacing:1px; margin-bottom:10px; }
+.calib-hero p { font-size:13px; color:var(--muted); line-height:1.7; max-width:420px; margin:0 auto; }
+.calib-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.calib-card { background:var(--glass); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; backdrop-filter:blur(12px); transition:border-color 0.3s; animation:fadeUp 0.5s ease both; }
+.calib-card:nth-child(2) { animation-delay:0.1s; }
+.calib-card:hover { border-color:var(--border2); }
+.calib-card-header { padding:14px 18px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.speaker-orb { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; flex-shrink:0; position:relative; }
+.speaker-orb::after { content:''; position:absolute; inset:-3px; border-radius:50%; opacity:0.4; animation:orbGlow 3s ease-in-out infinite; }
+.card-a .speaker-orb { background:rgba(0,212,255,0.15); color:var(--cyan); border:1px solid rgba(0,212,255,0.3); }
+.card-a .speaker-orb::after { box-shadow:0 0 12px var(--cyan); }
+.card-b .speaker-orb { background:rgba(168,85,247,0.15); color:var(--violet2); border:1px solid rgba(168,85,247,0.3); }
+.card-b .speaker-orb::after { box-shadow:0 0 12px var(--violet2); }
+.speaker-label { font-weight:600; font-size:13px; }
+.lang-wrap { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); }
+.lang-select { background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:7px; padding:5px 22px 5px 9px; font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:500; color:var(--text); cursor:pointer; outline:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%235a6070' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 7px center; }
+.calib-card-body { padding:16px 18px 18px; }
+.sentence-prompt { background:rgba(0,212,255,0.04); border:1px solid rgba(0,212,255,0.12); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+.card-b .sentence-prompt { background:rgba(168,85,247,0.04); border-color:rgba(168,85,247,0.12); }
+.prompt-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; color:var(--cyan); margin-bottom:6px; }
+.card-b .prompt-label { color:var(--violet2); }
+.prompt-text { font-size:13px; line-height:1.6; color:var(--text); font-style:italic; }
+.calib-hint { font-size:11px; color:var(--muted); line-height:1.7; margin-bottom:12px; }
+.calib-hint strong { color:var(--text); font-weight:600; }
+.btn-calib { width:100%; padding:11px; border-radius:10px; border:none; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; position:relative; overflow:hidden; }
+.card-a .btn-calib { background:linear-gradient(135deg,rgba(0,212,255,0.2),rgba(0,153,204,0.2)); color:var(--cyan); border:1px solid rgba(0,212,255,0.3); }
+.card-b .btn-calib { background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(124,58,237,0.2)); color:var(--violet2); border:1px solid rgba(168,85,247,0.3); }
+.btn-calib:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-calib:not(:disabled):hover { transform:translateY(-1px); }
+.btn-calib.recording { animation:recPulse 1s infinite; }
+.rec-dot { width:8px; height:8px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.calib-status-msg { margin-top:10px; padding:9px 13px; border-radius:8px; font-size:12px; font-weight:500; text-align:center; display:none; }
+.calib-status-msg.recording { display:block; background:rgba(0,212,255,0.08); color:var(--cyan); border:1px solid rgba(0,212,255,0.15); }
+.calib-status-msg.building  { display:block; background:rgba(168,85,247,0.08); color:var(--violet2); border:1px solid rgba(168,85,247,0.15); }
+.calib-status-msg.ready     { display:block; background:rgba(0,255,136,0.08); color:var(--green); border:1px solid rgba(0,255,136,0.2); }
+.calib-status-msg.failed    { display:block; background:rgba(255,68,85,0.08); color:var(--red); border:1px solid rgba(255,68,85,0.2); }
+
+/* Save voice option after calibration */
+.save-voice-row { margin-top:10px; display:none; align-items:center; gap:8px; padding:10px 13px; background:rgba(0,255,136,0.05); border:1px solid rgba(0,255,136,0.15); border-radius:8px; }
+.save-voice-row.show { display:flex; }
+.save-voice-input { flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:7px; padding:7px 10px; font-family:'Space Grotesk',sans-serif; font-size:12px; color:var(--text); outline:none; }
+.save-voice-input::placeholder { color:var(--muted); }
+.btn-save-voice { background:rgba(0,255,136,0.12); border:1px solid rgba(0,255,136,0.2); border-radius:7px; padding:7px 12px; font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:600; color:var(--green); cursor:pointer; white-space:nowrap; transition:all 0.2s; }
+.btn-save-voice:hover { background:rgba(0,255,136,0.2); }
+
+.calib-launch { text-align:center; margin-top:24px; padding-bottom:8px; }
+.btn-launch { padding:13px 44px; border-radius:12px; border:none; font-family:'Orbitron',monospace; font-size:12px; font-weight:700; letter-spacing:2px; text-transform:uppercase; cursor:pointer; background:linear-gradient(135deg,var(--cyan2),var(--violet)); color:white; opacity:0.25; pointer-events:none; transition:all 0.3s; }
+.btn-launch.ready { opacity:1; pointer-events:auto; }
+.btn-launch.ready:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(0,212,255,0.25); }
+.launch-note { margin-top:10px; font-size:12px; color:var(--muted); }
+.launch-note.ok { color:var(--green); }
+
+/* ── CONVERSATION SCREEN ── */
+#conversationView { grid-template-columns:1fr 48px 1fr; padding:22px 36px; max-width:1080px; margin:0 auto; width:100%; align-items:start; }
+.conv-panel { background:var(--glass); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; backdrop-filter:blur(12px); animation:fadeUp 0.4s ease both; }
+.conv-panel-b { animation-delay:0.07s; }
+.conv-panel-header { padding:13px 18px 11px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.conv-speaker-name { font-weight:600; font-size:13px; }
+.conv-lang-label { font-size:11px; color:var(--muted); margin-top:2px; }
+.clone-active-bar { padding:6px 18px; border-bottom:1px solid rgba(0,255,136,0.1); background:rgba(0,255,136,0.05); display:flex; align-items:center; gap:6px; font-size:10px; font-weight:600; color:var(--green); letter-spacing:1px; text-transform:uppercase; }
+.transcript-box { padding:14px 18px; min-height:110px; }
+.box-label { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:7px; display:flex; align-items:center; gap:8px; }
+.voice-badge { padding:2px 8px; border-radius:20px; font-size:9px; font-weight:700; letter-spacing:0.3px; opacity:0; transition:opacity 0.3s; }
+.voice-badge.cloned  { background:rgba(0,255,136,0.12); color:var(--green); border:1px solid rgba(0,255,136,0.2); opacity:1; }
+.voice-badge.fallback { background:rgba(255,200,0,0.1); color:#ffc800; border:1px solid rgba(255,200,0,0.2); opacity:1; }
+.proc-badge { display:inline-flex; align-items:center; gap:5px; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); opacity:0; transition:opacity 0.3s; }
+.proc-badge.show { opacity:1; }
+.spin { width:10px; height:10px; border:2px solid var(--border2); border-radius:50%; animation:spin 0.8s linear infinite; }
+.conv-panel-a .spin { border-top-color:var(--cyan); }
+.conv-panel-b .spin { border-top-color:var(--violet2); }
+.waveform { display:flex; align-items:center; gap:3px; height:24px; margin-bottom:8px; opacity:0; transition:opacity 0.3s; }
+.waveform.active { opacity:1; }
+.waveform .bar { width:3px; border-radius:2px; animation:waveAnim 1s ease-in-out infinite; }
+.conv-panel-a .waveform .bar { background:var(--cyan); }
+.conv-panel-b .waveform .bar { background:var(--violet2); }
+.waveform .bar:nth-child(1){height:60%;animation-delay:0s}.waveform .bar:nth-child(2){height:100%;animation-delay:.1s}.waveform .bar:nth-child(3){height:40%;animation-delay:.2s}.waveform .bar:nth-child(4){height:80%;animation-delay:.3s}.waveform .bar:nth-child(5){height:60%;animation-delay:.15s}.waveform .bar:nth-child(6){height:100%;animation-delay:.25s}.waveform .bar:nth-child(7){height:50%;animation-delay:.05s}
+.transcript-text { font-size:15px; line-height:1.7; color:var(--text); min-height:60px; }
+.transcript-text.placeholder { color:var(--muted); font-style:italic; font-size:13px; }
+.translation-box { padding:11px 18px 14px; border-top:1px solid var(--border); background:rgba(255,255,255,0.02); }
+.translation-text { font-size:13px; line-height:1.7; color:var(--text); min-height:46px; }
+.translation-text.placeholder { color:var(--muted); font-style:italic; }
+.record-row { padding:11px 18px 14px; }
+.btn-record { width:100%; padding:11px; border-radius:10px; border:none; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; }
+.conv-panel-a .btn-record { background:linear-gradient(135deg,rgba(0,212,255,0.18),rgba(0,153,204,0.18)); color:var(--cyan); border:1px solid rgba(0,212,255,0.25); }
+.conv-panel-b .btn-record { background:linear-gradient(135deg,rgba(168,85,247,0.18),rgba(124,58,237,0.18)); color:var(--violet2); border:1px solid rgba(168,85,247,0.25); }
+.btn-record:hover { transform:translateY(-1px); }
+.btn-record.recording { animation:recPulse 1s infinite; }
+.conv-divider { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:56px; gap:10px; }
+.swap-orb { width:36px; height:36px; border-radius:50%; background:var(--glass); border:1px solid var(--border); display:grid; place-items:center; cursor:pointer; transition:all 0.3s; color:var(--muted); backdrop-filter:blur(8px); }
+.swap-orb:hover { border-color:var(--cyan); color:var(--cyan); transform:rotate(180deg); }
+.divider-line { width:1px; height:80px; background:linear-gradient(to bottom,transparent,var(--border),transparent); }
+
+/* Footer */
+footer { position:relative; z-index:10; padding:11px 36px; border-top:1px solid var(--border); backdrop-filter:blur(20px); background:rgba(6,8,16,0.7); display:flex; align-items:center; gap:16px; font-size:11px; color:var(--muted); }
+.speed-ctl { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.speed-ctl label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+input[type=range] { accent-color:var(--cyan); width:70px; cursor:pointer; }
+
+/* Toast */
+#toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(80px); background:#1a1d2e; color:var(--text); border:1px solid var(--border2); padding:10px 18px; border-radius:10px; font-size:12px; font-weight:500; transition:transform 0.3s; z-index:100; max-width:360px; text-align:center; backdrop-filter:blur(12px); }
+#toast.show { transform:translateX(-50%) translateY(0); }
+
+/* Debug panel */
+#debugPanel { display:none; position:fixed; bottom:60px; left:0; right:0; max-height:180px; overflow-y:auto; background:rgba(0,0,0,0.92); color:#00ff88; font-family:monospace; font-size:11px; padding:10px; z-index:999; border-top:1px solid #333; }
+
+@media (max-width:680px) {
+  .calib-grid { grid-template-columns:1fr; }
+  #conversationView { grid-template-columns:1fr; padding:14px; }
+  .conv-divider { flex-direction:row; padding-top:0; padding:4px 0; }
+  .divider-line { width:40px; height:1px; }
+  header { padding:12px 18px; }
+  .header-tag { display:none; }
+  #calibrationView { padding:18px 16px; }
+  #authView { padding:24px 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">LANGWARP</div>
+  <div class="header-tag">Voice Translation</div>
+  <div class="status-pill" id="statusPill">
+    <div class="pulse-dot" id="statusDot"></div>
+    <span id="statusLabel">Welcome</span>
+  </div>
+  <div id="userChip">
+    <span id="userChipName"></span>
+    <button class="btn-header" onclick="logout()">Sign Out</button>
+  </div>
+  <button class="btn-header" id="btnReset" onclick="goRecalibrate()" style="display:none">↺ Reset</button>
+</header>
+
+<!-- ══════════════ AUTH ══════════════ -->
+<div id="authView" class="view active">
+  <div class="auth-hero">
+    <div class="auth-hero-label">Welcome</div>
+    <h1>LangWarp</h1>
+    <p>Sign in to save your cloned voice and skip calibration next time.</p>
+  </div>
+
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- Login form -->
+    <div class="auth-body" id="loginForm">
+      <div class="auth-field">
+        <label class="auth-label">Email</label>
+        <input class="auth-input" type="email" id="loginEmail" placeholder="you@example.com" />
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password</label>
+        <input class="auth-input" type="password" id="loginPassword" placeholder="••••••••" />
+      </div>
+      <button class="btn-auth" onclick="doLogin()">SIGN IN</button>
+      <div class="auth-error" id="loginError"></div>
+
+      <!-- Saved voices shown after login -->
+      <div class="saved-voices-panel" id="savedVoicesPanel" style="display:none">
+        <div class="saved-voices-title">✦ Your Saved Voices</div>
+        <div id="savedVoicesList"></div>
+        <button class="btn-auth" style="margin-top:14px;font-size:11px" onclick="goCalibrate()">+ Calibrate New Voice</button>
+      </div>
+    </div>
+
+    <!-- Signup form -->
+    <div class="auth-body" id="signupForm" style="display:none">
+      <div class="auth-field">
+        <label class="auth-label">Username</label>
+        <input class="auth-input" type="text" id="signupUsername" placeholder="your_name" />
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Email</label>
+        <input class="auth-input" type="email" id="signupEmail" placeholder="you@example.com" />
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password</label>
+        <input class="auth-input" type="password" id="signupPassword" placeholder="min 6 characters" />
+      </div>
+      <button class="btn-auth" onclick="doSignup()">CREATE ACCOUNT</button>
+      <div class="auth-error" id="signupError"></div>
+    </div>
+  </div>
+
+  <div class="auth-divider">or</div>
+  <button class="btn-guest" onclick="goCalibrate()">Continue as Guest →</button>
+</div>
+
+<!-- ══════════════ CALIBRATION ══════════════ -->
+<div id="calibrationView" class="view">
+  <div class="calib-hero">
+    <div class="calib-hero-label">Voice Calibration</div>
+    <h1>Clone Your Voice</h1>
+    <p>Each speaker reads the passage aloud. We'll clone their voice — takes about 10 seconds.</p>
+  </div>
+
+  <div class="calib-grid">
+    <div class="calib-card card-a">
+      <div class="calib-card-header">
+        <div class="speaker-orb">A</div>
+        <div><div class="speaker-label">Speaker A</div></div>
+        <div class="lang-wrap">speaks: <select class="lang-select" id="langA"></select></div>
+      </div>
+      <div class="calib-card-body">
+        <div class="sentence-prompt">
+          <div class="prompt-label">Read aloud</div>
+          <div class="prompt-text">"When the sunlight strikes raindrops in the air, they act as a prism and form a rainbow. The rainbow is a division of white light into many beautiful colors. These take the shape of a long round arch, with its path high above, and its two ends apparently beyond the horizon."</div>
+        </div>
+        <div class="calib-hint"><strong>1.</strong> Speak naturally.<br><strong>2.</strong> Tap Record, read, tap Stop.<br><strong>3.</strong> Wait for clone to build.</div>
+        <button class="btn-calib" id="btnCalibA" onclick="startCalibration('A')"><span class="rec-dot"></span> Record My Voice</button>
+        <div class="calib-status-msg" id="calibStatusA"></div>
+        <div class="save-voice-row" id="saveRowA">
+          <input class="save-voice-input" id="saveNameA" placeholder="Name this voice (e.g. John)" />
+          <button class="btn-save-voice" onclick="saveVoice('A')">Save ✦</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="calib-card card-b">
+      <div class="calib-card-header">
+        <div class="speaker-orb">B</div>
+        <div><div class="speaker-label">Speaker B</div></div>
+        <div class="lang-wrap">speaks: <select class="lang-select" id="langB"></select></div>
+      </div>
+      <div class="calib-card-body">
+        <div class="sentence-prompt">
+          <div class="prompt-label">Read aloud</div>
+          <div class="prompt-text">"When the sunlight strikes raindrops in the air, they act as a prism and form a rainbow. The rainbow is a division of white light into many beautiful colors. These take the shape of a long round arch, with its path high above, and its two ends apparently beyond the horizon."</div>
+        </div>
+        <div class="calib-hint"><strong>1.</strong> Speak naturally.<br><strong>2.</strong> Tap Record, read, tap Stop.<br><strong>3.</strong> Wait for clone to build.</div>
+        <button class="btn-calib" id="btnCalibB" onclick="startCalibration('B')"><span class="rec-dot"></span> Record My Voice</button>
+        <div class="calib-status-msg" id="calibStatusB"></div>
+        <div class="save-voice-row" id="saveRowB">
+          <input class="save-voice-input" id="saveNameB" placeholder="Name this voice (e.g. Maria)" />
+          <button class="btn-save-voice" onclick="saveVoice('B')">Save ✦</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="calib-launch">
+    <button class="btn-launch" id="btnStart" onclick="startConversation()">INITIATE TRANSLATION</button>
+    <div class="launch-note" id="calibFooterNote">Both speakers must calibrate before starting.</div>
+  </div>
+</div>
+
+<!-- ══════════════ CONVERSATION ══════════════ -->
+<div id="conversationView" class="view">
+  <div class="conv-panel conv-panel-a">
+    <div class="conv-panel-header">
+      <div class="speaker-orb card-a" style="width:30px;height:30px;font-size:11px">A</div>
+      <div><div class="conv-speaker-name">Speaker A</div><div class="conv-lang-label" id="convLangA"></div></div>
+    </div>
+    <div class="clone-active-bar"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor" opacity="0.7"/></svg> Clone Active</div>
+    <div class="transcript-box">
+      <div class="box-label">Speech <span class="voice-badge" id="modeBadgeA"></span><span class="proc-badge" id="procA"><span class="spin"></span> Processing</span></div>
+      <div class="waveform" id="waveA"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <div class="transcript-text placeholder" id="transcriptA">Tap Record to speak…</div>
+    </div>
+    <div class="translation-box">
+      <div class="box-label">Translation</div>
+      <div class="translation-text placeholder" id="translationA">Translation appears here…</div>
+    </div>
+    <div class="record-row"><button class="btn-record" id="btnA" onclick="toggleRecord('A')"><span class="rec-dot"></span> Record</button></div>
+  </div>
+
+  <div class="conv-divider">
+    <div class="swap-orb" onclick="swapLanguages()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg></div>
+    <div class="divider-line"></div>
+  </div>
+
+  <div class="conv-panel conv-panel-b">
+    <div class="conv-panel-header">
+      <div class="speaker-orb card-b" style="width:30px;height:30px;font-size:11px">B</div>
+      <div><div class="conv-speaker-name">Speaker B</div><div class="conv-lang-label" id="convLangB"></div></div>
+    </div>
+    <div class="clone-active-bar"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor" opacity="0.7"/></svg> Clone Active</div>
+    <div class="transcript-box">
+      <div class="box-label">Speech <span class="voice-badge" id="modeBadgeB"></span><span class="proc-badge" id="procB"><span class="spin"></span> Processing</span></div>
+      <div class="waveform" id="waveB"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <div class="transcript-text placeholder" id="transcriptB">Tap Record to speak…</div>
+    </div>
+    <div class="translation-box">
+      <div class="box-label">Translation</div>
+      <div class="translation-text placeholder" id="translationB">Translation appears here…</div>
+    </div>
+    <div class="record-row"><button class="btn-record" id="btnB" onclick="toggleRecord('B')"><span class="rec-dot"></span> Record</button></div>
+  </div>
+</div>
+
+<footer>
+  <span id="footerMode" style="font-size:10px;letter-spacing:0.5px">LANGWARP</span>
+  <div class="speed-ctl">
+    <label>Speed</label>
+    <input type="range" id="ttsSpeed" min="0.7" max="1.3" step="0.05" value="1.0" />
+    <span id="speedLabel" style="font-size:11px;font-weight:600;color:var(--cyan)">1.0×</span>
+  </div>
+  <button class="btn-header" id="btnReset2" onclick="goRecalibrate()" style="display:none">↺ Reset</button>
+</footer>
+
+<div id="debugPanel"><div style="color:#888;margin-bottom:4px">DEBUG (tap header 3×)</div><div id="debugLog"></div></div>
+<div id="toast"></div>
+
+<script>
+const API_BASE = window.location.origin;
+const LANGUAGES = {"en":"English","es":"Spanish","fr":"French","de":"German","it":"Italian","pt":"Portuguese","zh":"Chinese","ja":"Japanese","ko":"Korean","ar":"Arabic","hi":"Hindi","ru":"Russian"};
+
+// ── App state ──────────────────────────────────────────────────
+let currentUser = null;
+let authToken   = null;
+let savedVoices = [];
+const calibState = {A:"none", B:"none"};
+let calibRecorder = null;
+let convRecorder  = null;
+let convSpeaker   = null;
+
+// ── iOS Audio ──────────────────────────────────────────────────
+let audioCtx = null;
+let pendingAudioUrl = null;
+let audioUnlocked = false;
+
+function unlockAudioSync() {
+  // Always create or resume — iOS can silently suspend between taps
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    dbg("Created AudioCtx state: " + audioCtx.state);
+  }
+  // Always call resume() on every tap — it's a no-op if already running
+  audioCtx.resume().then(() => {
+    const wasUnlocked = audioUnlocked;
+    audioUnlocked = (audioCtx.state === "running");
+    dbg("resume() → state: " + audioCtx.state + " unlocked: " + audioUnlocked);
+    if (audioUnlocked && pendingAudioUrl) {
+      const u = pendingAudioUrl; pendingAudioUrl = null; playAudio(u);
+    }
+    if (!wasUnlocked && audioUnlocked) dbg("Audio newly unlocked for this speaker");
+  }).catch(e => dbg("resume err: " + e));
+}
+
+function playAudio(url) {
+  dbg("playAudio unlock="+audioUnlocked+" ctx="+(audioCtx?audioCtx.state:"null"));
+
+  // Always try to resume first, then play
+  const doPlay = () => {
+    const audio = new Audio(url);
+    audio.play().then(() => {
+      dbg("play OK");
+    }).catch(e => {
+      dbg("play ERR: " + e.name + " — queuing for next tap");
+      // Only queue if it was a genuine autoplay block
+      pendingAudioUrl = url;
+      showToast("Tap either Record button to hear the translation");
+    });
+    audio.onended = () => { dbg("ended"); URL.revokeObjectURL(url); };
+  };
+
+  if (!audioCtx) {
+    // No context yet — queue and wait for next tap
+    dbg("No audioCtx yet — queuing");
+    pendingAudioUrl = url;
+    showToast("Tap either Record button to hear the translation");
+    return;
+  }
+
+  if (audioCtx.state === "suspended") {
+    // Try to resume then play
+    audioCtx.resume().then(() => {
+      audioUnlocked = audioCtx.state === "running";
+      dbg("Resumed before play, state: " + audioCtx.state);
+      doPlay();
+    }).catch(e => {
+      dbg("resume failed: " + e);
+      pendingAudioUrl = url;
+    });
+  } else {
+    // Already running — play directly
+    audioUnlocked = true;
+    doPlay();
+  }
+}
+
+// ── Auth helpers ───────────────────────────────────────────────
+function authHeaders() {
+  return authToken ? {"Authorization": "Bearer " + authToken, "Content-Type": "application/json"} : {"Content-Type": "application/json"};
+}
+
+function saveSession(token, user, voices) {
+  authToken   = token;
+  currentUser = user;
+  savedVoices = voices || [];
+  localStorage.setItem("lw_token", token);
+  localStorage.setItem("lw_user", JSON.stringify(user));
+}
+
+function clearSession() {
+  authToken = null; currentUser = null; savedVoices = [];
+  localStorage.removeItem("lw_token");
+  localStorage.removeItem("lw_user");
+}
+
+// ── Tab switch ─────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById("loginForm").style.display  = tab==="login"  ? "block" : "none";
+  document.getElementById("signupForm").style.display = tab==="signup" ? "block" : "none";
+  document.getElementById("tabLogin").classList.toggle("active", tab==="login");
+  document.getElementById("tabSignup").classList.toggle("active", tab==="signup");
+}
+
+// ── Login ──────────────────────────────────────────────────────
+async function doLogin() {
+  const email    = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errEl    = document.getElementById("loginError");
+  errEl.classList.remove("show");
+
+  if (!email || !password) { showAuthError("loginError","Please fill in all fields"); return; }
+
+  try {
+    const res  = await fetch(`${API_BASE}/api/auth/login`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,password})});
+    const data = await res.json();
+    if (!res.ok) { showAuthError("loginError", data.detail || "Login failed"); return; }
+
+    saveSession(data.token, data.user, data.saved_voices);
+    showUserChip(data.user.username);
+    showSavedVoices(data.saved_voices);
+  } catch (e) { showAuthError("loginError","Connection error"); }
+}
+
+// ── Signup ─────────────────────────────────────────────────────
+async function doSignup() {
+  const username = document.getElementById("signupUsername").value.trim();
+  const email    = document.getElementById("signupEmail").value.trim();
+  const password = document.getElementById("signupPassword").value;
+
+  if (!username || !email || !password) { showAuthError("signupError","Please fill in all fields"); return; }
+
+  try {
+    const res  = await fetch(`${API_BASE}/api/auth/signup`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username,email,password})});
+    const data = await res.json();
+    if (!res.ok) { showAuthError("signupError", data.detail || "Signup failed"); return; }
+
+    saveSession(data.token, data.user, []);
+    showUserChip(data.user.username);
+    // New user has no saved voices — go straight to calibration
+    goCalibrate();
+  } catch (e) { showAuthError("signupError","Connection error"); }
+}
+
+function showAuthError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.classList.add("show");
+}
+
+function showUserChip(username) {
+  document.getElementById("userChipName").textContent = username;
+  document.getElementById("userChip").style.display = "flex";
+}
+
+function showSavedVoices(voices) {
+  const panel = document.getElementById("savedVoicesPanel");
+  const list  = document.getElementById("savedVoicesList");
+  if (!voices || voices.length === 0) { panel.style.display="none"; return; }
+
+  panel.style.display = "block";
+  list.innerHTML = voices.map(v => `
+    <div class="saved-voice-item">
+      <div>
+        <div class="saved-voice-name">${v.voice_name}</div>
+        <div class="saved-voice-lang">${LANGUAGES[v.language]||v.language}</div>
+      </div>
+      <button class="btn-use-voice" onclick="loadSavedVoice(${v.id}, '${v.voice_name}')">Load for A</button>
+      <button class="btn-use-voice" onclick="loadSavedVoiceB(${v.id}, '${v.voice_name}')">Load for B</button>
+    </div>
+  `).join("");
+}
+
+async function loadSavedVoice(voiceId, name) {
+  await loadVoiceForSpeaker(voiceId, name, "speaker_a", "A");
+}
+async function loadSavedVoiceB(voiceId, name) {
+  await loadVoiceForSpeaker(voiceId, name, "speaker_b", "B");
+}
+
+async function loadVoiceForSpeaker(voiceId, name, speakerKey, speaker) {
+  try {
+    const form = new FormData();
+    form.append("speaker", speakerKey);
+    form.append("voice_id", voiceId);
+    const res = await fetch(`${API_BASE}/api/voices/load`, {
+      method:"POST",
+      headers:{"Authorization":"Bearer "+authToken},
+      body: form,
+    });
+    if (!res.ok) { showToast("Failed to load voice"); return; }
+    calibState[speaker] = "ready";
+    setCalibMsg(speaker, "ready", `✦ ${name} loaded — ready to use!`);
+    const btn = document.getElementById("btnCalib"+speaker);
+    btn.innerHTML = "✓ Voice Loaded"; btn.style.opacity="0.5"; btn.disabled=true;
+    checkBothReady();
+    showToast(`${name} loaded for Speaker ${speaker}`);
+  } catch(e) { showToast("Error loading voice: "+e.message); }
+}
+
+function logout() {
+  clearSession();
+  document.getElementById("userChip").style.display = "none";
+  document.getElementById("savedVoicesPanel").style.display = "none";
+  document.getElementById("loginEmail").value = "";
+  document.getElementById("loginPassword").value = "";
+  showView("authView");
+  setStatus("Welcome");
+}
+
+// ── Save voice after calibration ───────────────────────────────
+async function saveVoice(speaker) {
+  if (!authToken) { showToast("Sign in to save your voice"); return; }
+  const nameInput = document.getElementById("saveName"+speaker);
+  const name = nameInput.value.trim();
+  if (!name) { showToast("Enter a name for your voice"); return; }
+  const lang = document.getElementById("lang"+speaker).value;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/voices/save`, {
+      method:"POST",
+      headers: authHeaders(),
+      body: JSON.stringify({speaker: "speaker_"+speaker.toLowerCase(), voice_name: name, language: lang}),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.detail||"Failed to save"); return; }
+    showToast(`✦ "${name}" saved to your account!`);
+    document.getElementById("saveRow"+speaker).classList.remove("show");
+  } catch(e) { showToast("Error: "+e.message); }
+}
+
+// ── Navigation ─────────────────────────────────────────────────
+function showView(id) {
+  document.querySelectorAll(".view").forEach(v=>{ v.classList.remove("active"); });
+  const el = document.getElementById(id);
+  el.classList.add("active");
+}
+
+function goCalibrate() {
+  showView("calibrationView");
+  document.getElementById("btnReset").style.display = "none";
+  document.getElementById("btnReset2").style.display = "none";
+  document.getElementById("footerMode").textContent = "CALIBRATING VOICES";
+  setStatus("Setup");
+}
+
+function goRecalibrate() {
+  calibState.A = "none"; calibState.B = "none";
+  ["A","B"].forEach(s => {
+    const btn = document.getElementById("btnCalib"+s);
+    btn.innerHTML = '<span class="rec-dot"></span> Record My Voice';
+    btn.disabled=false; btn.style.opacity="";
+    btn.classList.remove("recording");
+    const msg = document.getElementById("calibStatus"+s);
+    msg.className="calib-status-msg"; msg.textContent="";
+    document.getElementById("saveRow"+s).classList.remove("show");
+  });
+  document.getElementById("btnStart").classList.remove("ready");
+  const note = document.getElementById("calibFooterNote");
+  note.textContent="Both speakers must calibrate before starting."; note.classList.remove("ok");
+  showView("calibrationView");
+  document.getElementById("btnReset").style.display="none";
+  document.getElementById("btnReset2").style.display="none";
+  document.getElementById("footerMode").textContent="CALIBRATING VOICES";
+  setStatus("Setup");
+}
+
+function swapLanguages() {
+  const a=document.getElementById("langA"), b=document.getElementById("langB");
+  [a.value,b.value]=[b.value,a.value];
+}
+
+// ── Calibration ────────────────────────────────────────────────
+async function startCalibration(speaker) {
+  const btn = document.getElementById("btnCalib"+speaker);
+  if (calibState[speaker]==="recording" && calibRecorder) { calibRecorder.stop(); return; }
+  if (calibRecorder) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const chunks = [];
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "";
+    const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : {});
+    recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t=>t.stop());
+      calibRecorder = null;
+      const blob = new Blob(chunks, {type: mimeType||"audio/webm"});
+      if (blob.size<500) {
+        setCalibMsg(speaker,"failed","⚠ Too short — try again.");
+        btn.innerHTML='<span class="rec-dot"></span> Record My Voice';
+        calibState[speaker]="none"; btn.disabled=false; return;
+      }
+      await submitCalibration(speaker, blob);
+    };
+    recorder.start(100);
+    calibRecorder=recorder; calibState[speaker]="recording";
+    btn.classList.add("recording");
+    btn.innerHTML='<span class="rec-dot"></span> Recording… (tap to stop)';
+    setCalibMsg(speaker,"recording","⬤ Listening — speak clearly.");
+  } catch(err) { showToast("Mic access denied: "+err.message); }
+}
+
+async function submitCalibration(speaker, blob) {
+  const btn = document.getElementById("btnCalib"+speaker);
+  btn.classList.remove("recording"); btn.disabled=true;
+  btn.innerHTML='<span class="rec-dot"></span> Cloning…';
+  calibState[speaker]="building";
+  setCalibMsg(speaker,"building","◌ Building voice clone…");
+
+  try {
+    const form = new FormData();
+    form.append("audio", blob, "calibration.webm");
+    form.append("speaker", "speaker_"+speaker.toLowerCase());
+
+    const headers = authToken ? {"Authorization":"Bearer "+authToken} : {};
+    const res = await fetch(`${API_BASE}/api/calibrate`, {method:"POST", headers, body:form});
+    if (!res.ok) { const e=await res.json(); throw new Error(e.detail||"Server error"); }
+    const data = await res.json();
+
+    if (data.clone_status==="ready") {
+      calibState[speaker]="ready";
+      btn.innerHTML="✓ Voice Cloned"; btn.style.opacity="0.5";
+      setCalibMsg(speaker,"ready","✦ Voice clone active and ready.");
+      // Show save option if logged in
+      if (authToken) document.getElementById("saveRow"+speaker).classList.add("show");
+      checkBothReady();
+    } else { throw new Error("Clone build failed"); }
+  } catch(err) {
+    calibState[speaker]="failed"; btn.disabled=false;
+    btn.innerHTML='<span class="rec-dot"></span> Try Again';
+    setCalibMsg(speaker,"failed","✕ Failed: "+err.message);
+  }
+}
+
+function setCalibMsg(speaker, type, msg) {
+  const el = document.getElementById("calibStatus"+speaker);
+  el.className="calib-status-msg "+type; el.textContent=msg;
+}
+
+function checkBothReady() {
+  const btn=document.getElementById("btnStart"), note=document.getElementById("calibFooterNote");
+  const aOk=calibState.A==="ready", bOk=calibState.B==="ready";
+  if (aOk&&bOk) { btn.classList.add("ready"); note.textContent="Both voices ready — initiate when you are."; note.classList.add("ok"); }
+  else if (aOk) { note.textContent="Speaker A ready. Waiting for Speaker B…"; }
+  else if (bOk) { note.textContent="Speaker B ready. Waiting for Speaker A…"; }
+}
+
+function startConversation() {
+  const langA=document.getElementById("langA").value, langB=document.getElementById("langB").value;
+  document.getElementById("convLangA").textContent=(LANGUAGES[langA]||langA)+" → "+(LANGUAGES[langB]||langB);
+  document.getElementById("convLangB").textContent=(LANGUAGES[langB]||langB)+" → "+(LANGUAGES[langA]||langA);
+  showView("conversationView");
+  document.getElementById("btnReset").style.display="block";
+  document.getElementById("btnReset2").style.display="block";
+  document.getElementById("footerMode").textContent="WHISPER · GPT-4O-MINI · ELEVENLABS";
+  setStatus("idle");
+}
+
+// ── Recording ──────────────────────────────────────────────────
+async function toggleRecord(speaker) {
+  // Stop if already recording this speaker
+  if (convSpeaker===speaker && convRecorder) { convRecorder.stop(); return; }
+  if (convRecorder) return;
+
+  // Unlock audio FIRST and wait for it — this tap is the user gesture iOS needs
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    dbg("Created AudioCtx in toggleRecord, state: " + audioCtx.state);
+  }
+  try {
+    await audioCtx.resume();
+    audioUnlocked = (audioCtx.state === "running");
+    dbg("Pre-recording resume done, state: " + audioCtx.state + " unlocked: " + audioUnlocked);
+  } catch(e) { dbg("pre-recording resume err: " + e); }
+
+  const btn=document.getElementById("btn"+speaker), wave=document.getElementById("wave"+speaker);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const chunks = [];
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "";
+    const recorder = new MediaRecorder(stream, mimeType ? {mimeType} : {});
+    recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t=>t.stop());
+      wave.classList.remove("active"); btn.classList.remove("recording");
+      btn.innerHTML='<span class="rec-dot"></span> Record';
+      setStatus("idle"); convRecorder=null; convSpeaker=null;
+      const blob = new Blob(chunks, {type:mimeType||"audio/webm"});
+      if (blob.size>500) await processAudio(blob, speaker);
+    };
+    recorder.start(100); convRecorder=recorder; convSpeaker=speaker;
+    wave.classList.add("active"); btn.classList.add("recording");
+    btn.innerHTML='<span class="rec-dot"></span> Recording… (tap to stop)';
+    setStatus("live");
+  } catch(err) { showToast("Mic access denied: "+err.message); }
+}
+
+async function processAudio(blob, speaker) {
+  const procBadge=document.getElementById("proc"+speaker);
+  const transcriptEl=document.getElementById("transcript"+speaker);
+  const translationEl=document.getElementById("translation"+speaker);
+  const modeBadge=document.getElementById("modeBadge"+speaker);
+
+  const srcLang=speaker==="A"?document.getElementById("langA").value:document.getElementById("langB").value;
+  const tgtLang=speaker==="A"?document.getElementById("langB").value:document.getElementById("langA").value;
+  const speed=document.getElementById("ttsSpeed").value;
+  const spKey="speaker_"+speaker.toLowerCase();
+
+  procBadge.classList.add("show");
+  transcriptEl.textContent="Transcribing…"; transcriptEl.classList.add("placeholder");
+  translationEl.textContent="Translating…"; translationEl.classList.add("placeholder");
+  modeBadge.className="voice-badge";
+
+  try {
+    const form = new FormData();
+    form.append("audio",blob,"audio.webm");
+    form.append("source_lang",srcLang);
+    form.append("target_lang",tgtLang);
+    form.append("speaker",spKey);
+    form.append("speed",speed);
+
+    const headers = authToken ? {"Authorization":"Bearer "+authToken} : {};
+    const res = await fetch(`${API_BASE}/api/translate-voice`,{method:"POST",headers,body:form});
+    if (!res.ok) { const e=await res.json(); throw new Error(e.detail||"Server error"); }
+    const data = await res.json();
+
+    transcriptEl.textContent=data.original_text||"(no speech detected)"; transcriptEl.classList.remove("placeholder");
+    translationEl.textContent=data.translated_text||"(no translation)"; translationEl.classList.remove("placeholder");
+
+    modeBadge.textContent=data.voice_mode==="cloned"?"✦ Cloned":"Standard";
+    modeBadge.className="voice-badge "+(data.voice_mode==="cloned"?"cloned":"fallback");
+
+    if (data.audio_base64) {
+      dbg("Got audio b64 len="+data.audio_base64.length+" mime="+data.audio_mime);
+      const bin=atob(data.audio_base64), buf=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      const url=URL.createObjectURL(new Blob([buf],{type:data.audio_mime}));
+      playAudio(url);
+    }
+  } catch(err) { transcriptEl.textContent="Error: "+err.message; showToast(err.message); }
+  finally { procBadge.classList.remove("show"); }
+}
+
+// ── Init ───────────────────────────────────────────────────────
+function buildSelects() {
+  ["langA","langB"].forEach((id,i)=>{
+    const sel=document.getElementById(id);
+    Object.entries(LANGUAGES).forEach(([code,name])=>{ const opt=document.createElement("option"); opt.value=code; opt.textContent=name; sel.appendChild(opt); });
+    sel.value=i===0?"en":"es";
+  });
+}
+
+document.getElementById("ttsSpeed").addEventListener("input",e=>{
+  document.getElementById("speedLabel").textContent=parseFloat(e.target.value).toFixed(2)+"×";
+});
+
+// ── Debug ──────────────────────────────────────────────────────
+let debugVisible=false, headerTaps=0;
+function dbg(msg) {
+  const log=document.getElementById("debugLog");
+  log.innerHTML=`<div>${new Date().toLocaleTimeString()}: ${msg}</div>`+log.innerHTML;
+  console.log(msg);
+}
+document.querySelector("header").addEventListener("click",()=>{
+  if(++headerTaps>=3){ headerTaps=0; debugVisible=!debugVisible; document.getElementById("debugPanel").style.display=debugVisible?"block":"none"; }
+});
+
+// ── Helpers ────────────────────────────────────────────────────
+function setStatus(state) {
+  const pill=document.getElementById("statusPill"), lbl=document.getElementById("statusLabel");
+  if(state==="live"){ pill.classList.add("live"); lbl.textContent="Live"; }
+  else { pill.classList.remove("live"); lbl.textContent=state==="idle"?"Ready":state; }
+}
+let toastTimer;
+function showToast(msg) {
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),4000);
+}
+
+// ── Boot: check for saved session ─────────────────────────────
+async function boot() {
+  buildSelects();
+  const token=localStorage.getItem("lw_token");
+  const user=localStorage.getItem("lw_user");
+  if (token && user) {
+    // Verify token is still valid
+    try {
+      const res=await fetch(`${API_BASE}/api/auth/me`,{headers:{"Authorization":"Bearer "+token}});
+      if (res.ok) {
+        const data=await res.json();
+        authToken=token; currentUser=data.user; savedVoices=data.saved_voices;
+        showUserChip(data.user.username);
+        showSavedVoices(data.saved_voices);
+        return; // Stay on auth screen to let them choose/load a voice
+      }
+    } catch(e) {}
+    clearSession();
+  }
+}
+
+boot();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
+}
+</script>
+</body>
+</html>
